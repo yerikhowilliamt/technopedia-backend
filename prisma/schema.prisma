@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CUSTOMER
+}
+
+model User {
+  id                  Int         @id                             @default(autoincrement())
+  name                String      @db.VarChar(100)
+  email               String      @db.VarChar(100)                @unique
+  emailVerified       DateTime?                                   @map("email_verified")
+  password            String?     @db.VarChar(100)
+  accessToken         String?     @db.Text                        @map("access_token")
+  refreshToken        String?     @db.Text                        @map("refresh_token")
+  image               String?
+  role                UserRole    @default(CUSTOMER)
+
+  createdAt           DateTime    @default(now())                 @map("created_at")
+  updatedAt           DateTime    @updatedAt                      @map("updated_at")
+
+  accounts            Account[]
+  contacts            Contact[]
+  addresses           Address[]
+
+  @@map("users")
+}
+
+model Account {
+  id                  Int         @id                             @default(autoincrement())
+  userId              Int         @map("user_id")
+  provider            String
+  providerAccountId   String      @map("provider_account_id")     @unique
+  accessToken         String?     @db.Text                        @map("access_token")
+  refreshToken        String?     @db.Text                        @map("refresh_token")
+
+  createdAt           DateTime    @default(now())                 @map("created_at")
+  updatedAt           DateTime    @updatedAt                      @map("updated_at")
+ 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  @@index([userId])
+  @@index([providerAccountId])
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Contact {
+  id                  Int         @id                             @default(autoincrement())
+  userId              Int                                         @map("user_id")
+  phone               String      @db.VarChar(20)
+
+  createdAt           DateTime    @default(now())                 @map("created_at")
+  updatedAt           DateTime    @updatedAt                      @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("contacts")
+}
+
+model Address {
+  id                  Int         @id                             @default(autoincrement())
+  userId              Int                                         @map("user_id")
+  street              String      @db.VarChar(255)
+  city                String      @db.VarChar(100)
+  province            String      @db.VarChar(100)
+  country             String      @db.VarChar(100)
+  postalCode          String      @db.VarChar(10)                 @map("postal_code")
+  isPrimary           Boolean     @default(false)                 @map("is_primary")
+
+  createdAt           DateTime    @default(now())                 @map("created_at")
+  updatedAt           DateTime    @updatedAt                      @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
+}
