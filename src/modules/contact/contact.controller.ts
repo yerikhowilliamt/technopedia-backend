@@ -2,17 +2,18 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
+  UnauthorizedException,
   Get,
   Param,
   ParseIntPipe,
   Post,
   Put,
   UseGuards,
+  Inject,
 } from '@nestjs/common';
 import { ContactService } from './contact.service';
 import { Auth } from '../../common/auth/auth.decorator';
-import WebResponse from '../../model/web.model';
+import WebResponse, { Paging } from '../../model/web.model';
 import {
   ContactResponse,
   CreateContactRequest,
@@ -20,10 +21,47 @@ import {
 } from '../../model/contact.model';
 import { User } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger } from 'winston';
 
 @Controller('users/:userId/contacts')
 export class ContactController {
-  constructor(private contactService: ContactService) {}
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) private logger: Logger,
+    private contactService: ContactService,
+  ) {}
+
+  private toContactResponse<T>(
+    data: T,
+    statusCode: number,
+    paging?: Paging,
+  ): WebResponse<T> {
+    return {
+      data,
+      statusCode,
+      timestamp: new Date().toString(),
+      ...(paging ? { paging } : {}),
+    };
+  }
+
+  private handleError(error: Error): never {
+    if (error instanceof UnauthorizedException) {
+      throw error;
+    }
+
+    throw error;
+  }
+
+  private checkAuthorization(userId: number, user: User): void {
+    if (user.id !== userId) {
+      this.logger.info(
+        `CONTACT CONTROLLER | CHECK AUTH: {user_id: ${JSON.stringify(userId)}}`,
+      );
+      throw new UnauthorizedException(
+        `You are not authorized to access this user's contacts`,
+      );
+    }
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -35,21 +73,13 @@ export class ContactController {
     try {
       request.userId = userId;
 
-      if (request.userId !== userId) {
-        throw new ForbiddenException(
-          `You are not authorized to view this user's addresses`,
-        );
-      }
+      this.checkAuthorization(userId, user);
 
       const result = await this.contactService.create(user, request);
 
-      return {
-        data: result,
-        statusCode: 201,
-        timestamp: new Date().toString(),
-      };
+      return this.toContactResponse(result, 200);
     } catch (error) {
-      throw error;
+      this.handleError(error);
     }
   }
 
@@ -61,21 +91,13 @@ export class ContactController {
     @Param('contactId', ParseIntPipe) contactId: number,
   ): Promise<WebResponse<ContactResponse>> {
     try {
-      if (user.id !== userId) {
-        throw new ForbiddenException(
-          `You are not authorized to view this user's addresses`,
-        );
-      }
+      this.checkAuthorization(userId, user);
 
       const result = await this.contactService.get(user, contactId);
 
-      return {
-        data: result,
-        statusCode: 200,
-        timestamp: new Date().toString(),
-      };
+      return this.toContactResponse(result, 200);
     } catch (error) {
-      throw error;
+      this.handleError(error);
     }
   }
 
@@ -90,20 +112,14 @@ export class ContactController {
     try {
       request.id = contactId;
 
-      if (user.id !== userId) {
-        throw new ForbiddenException(
-          `You are not authorized to view this user's addresses`,
-        );
-      }
+      this.checkAuthorization(userId, user);
 
       const result = await this.contactService.update(user, request);
 
-      return {
-        data: result,
-        statusCode: 200,
-        timestamp: new Date().toString(),
-      };
-    } catch (error) {}
+      return this.toContactResponse(result, 200);
+    } catch (error) {
+      this.handleError(error);
+    }
   }
 
   @Delete(':contactId')
@@ -114,24 +130,19 @@ export class ContactController {
     @Param('contactId', ParseIntPipe) contactId: number,
   ): Promise<WebResponse<{ message: string; success: boolean }>> {
     try {
-      if (user.id !== userId) {
-        throw new ForbiddenException(
-          `You are not authorized to view this user's addresses`,
-        );
-      }
+      this.checkAuthorization(userId, user);
 
       const result = await this.contactService.delete(user, contactId);
 
-      return {
-        data: {
+      return this.toContactResponse(
+        {
           message: result.message,
           success: result.success,
         },
-        statusCode: 200,
-        timestamp: new Date().toString(),
-      };
+        200,
+      );
     } catch (error) {
-      throw error;
+      this.handleError(error);
     }
   }
 }

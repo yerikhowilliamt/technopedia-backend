@@ -66,10 +66,7 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 CREATE UNIQUE INDEX "accounts_provider_account_id_key" ON "accounts"("provider_account_id");
 
 -- CreateIndex
-CREATE INDEX "accounts_user_id_idx" ON "accounts"("user_id");
-
--- CreateIndex
-CREATE INDEX "accounts_provider_account_id_idx" ON "accounts"("provider_account_id");
+CREATE INDEX "accounts_user_id_provider_account_id_idx" ON "accounts"("user_id", "provider_account_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "accounts_provider_provider_account_id_key" ON "accounts"("provider", "provider_account_id");
@@ -78,7 +75,7 @@ CREATE UNIQUE INDEX "accounts_provider_provider_account_id_key" ON "accounts"("p
 CREATE INDEX "contacts_user_id_idx" ON "contacts"("user_id");
 
 -- CreateIndex
-CREATE INDEX "addresses_user_id_idx" ON "addresses"("user_id");
+CREATE INDEX "addresses_user_id_street_idx" ON "addresses"("user_id", "street");
 
 -- AddForeignKey
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -29,15 +29,16 @@ model User {
   accounts            Account[]
   contacts            Contact[]
   addresses           Address[]
+  stores              Store[]
 
   @@map("users")
 }
 
 model Account {
   id                  Int         @id                             @default(autoincrement())
-  userId              Int         @map("user_id")
+  userId              Int                                         @map("user_id")
   provider            String
-  providerAccountId   String      @map("provider_account_id")     @unique
+  providerAccountId   String      @unique                         @map("provider_account_id")
   accessToken         String?     @db.Text                        @map("access_token")
   refreshToken        String?     @db.Text                        @map("refresh_token")
 
@@ -46,8 +47,7 @@ model Account {
  
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
  
-  @@index([userId])
-  @@index([providerAccountId])
+  @@index([userId, providerAccountId])
   @@unique([provider, providerAccountId])
   @@map("accounts")
 }
@@ -81,6 +81,19 @@ model Address {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId, street])
   @@map("addresses")
+}
+
+model Store {
+  id                  Int         @id                             @default(autoincrement())
+  userId              Int                                         @map("user_id")
+  name                String
+
+  createdAt           DateTime    @default(now())                 @map("created_at")
+  updatedAt           DateTime    @updatedAt                      @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@map("stores")
 }

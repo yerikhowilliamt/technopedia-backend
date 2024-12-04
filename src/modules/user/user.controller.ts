@@ -14,7 +14,7 @@ import {
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 import { UserService } from './user.service';
-import WebResponse from '../../model/web.model';
+import WebResponse, { Paging } from '../../model/web.model';
 import { UpdateUserRequest, UserResponse } from '../../model/user.model';
 import { Auth } from '../../common/auth/auth.decorator';
 import { User } from '@prisma/client';
@@ -28,6 +28,19 @@ export class UserController {
     private userService: UserService,
   ) {}
 
+  private toUserResponse<T>(
+    data: T,
+    statusCode: number,
+    paging?: Paging,
+  ): WebResponse<T> {
+    return {
+      data,
+      statusCode,
+      timestamp: new Date().toString(),
+      ...(paging ? { paging } : {}),
+    };
+  }
+
   @Get('current')
   @UseGuards(JwtAuthGuard)
   async get(@Auth() user: User): Promise<WebResponse<UserResponse>> {
@@ -38,11 +51,7 @@ export class UserController {
 
       const result = await this.userService.get(user);
 
-      return {
-        data: result,
-        statusCode: 200,
-        timestamp: new Date().toString(),
-      };
+      return this.toUserResponse(result, 200);
     } catch (error) {
       throw error;
     }
@@ -68,11 +77,7 @@ export class UserController {
 
       const result = await this.userService.update(user, request, file);
 
-      return {
-        data: result,
-        statusCode: 200,
-        timestamp: new Date().toString(),
-      };
+      return this.toUserResponse(result, 200);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -93,11 +98,13 @@ export class UserController {
 
       const result = await this.userService.logout(user);
 
-      return {
-        data: result,
-        statusCode: 200,
-        timestamp: new Date().toString(),
-      };
+      return this.toUserResponse(
+        {
+          message: result.message,
+          success: result.success,
+        },
+        200,
+      );
     } catch (error) {
       throw error;
     }
