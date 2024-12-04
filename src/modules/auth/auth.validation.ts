@@ -15,12 +15,6 @@ export class AuthValidation {
     password: z.string().min(8, {
       message: 'Password is required. It must be at least 8 characters long.'
     }).max(100).optional(),
-    address: z.string().min(1, {
-      message: 'Address is required.'
-    }),
-    phone: z.string().min(10, {
-      message: 'Phone number is required. Please enter at least 10 characters.'
-    }).max(20),
   });
 
   static readonly VALIDATEUSER: ZodType = z.object({

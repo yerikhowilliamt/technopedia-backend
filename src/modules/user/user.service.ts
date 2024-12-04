@@ -36,35 +36,36 @@ export class UserService {
     };
   }
 
+  private handleError(error: any): never {
+    if (error instanceof UnauthorizedException) {
+      throw error;
+    }
+    if (error instanceof NotFoundException) {
+      throw error;
+    }
+    this.logger.error('Internal Server Error:', error);
+    throw new InternalServerErrorException(error);
+  }
+
   async get(user: User): Promise<UserResponse> {
     try {
-      this.logger.info(
-        `USER SERVICE | GET : { User with email: ${user.email} }`,
-      );
+      this.logger.info(`USER SERVICE | GET : User with email: ${user.email}`);
 
       const currentUser = await this.prismaService.user.findUnique({
-        where: {
-          email: user.email,
-        },
+        where: { email: user.email },
       });
-
-      const accessToken = currentUser.accessToken;
 
       if (!currentUser) {
         throw new UnauthorizedException('User not found');
       }
 
-      if (!accessToken) {
+      if (!currentUser.accessToken) {
         throw new UnauthorizedException('Token must be provided');
       }
 
       return this.toUserResponse(currentUser);
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error
-      }
-      
-      throw new InternalServerErrorException(error);
+      this.handleError(error);
     }
   }
 
@@ -75,11 +76,13 @@ export class UserService {
   ): Promise<UserResponse> {
     try {
       this.logger.info(
-        `USER SERVICE | User: ${JSON.stringify(user.email)} trying to update their profile`,
+        `USER SERVICE | UPDATE : User ${user.email} trying to update their profile`,
       );
 
-      const updateRequest: UpdateUserRequest =
-        await this.validationService.validate(UserValidation.UPDATE, request);
+      const updateRequest = await this.validationService.validate(
+        UserValidation.UPDATE,
+        request,
+      );
 
       const existingUser = await this.prismaService.user.findUnique({
         where: { email: user.email },
@@ -89,38 +92,10 @@ export class UserService {
         throw new NotFoundException('User not found');
       }
 
-      const updatedUserData: Partial<User> = {};
-
-      if (updateRequest.name) updatedUserData.name = updateRequest.name;
-      if (updateRequest.password)
-        updatedUserData.password = await bcrypt.hash(
-          updateRequest.password,
-          10,
-        );
-      if (updateRequest.role) updatedUserData.role = updateRequest.role;
-
-      if (file) {
-        try {
-          const uploadResult = await this.uploadService.uploadImage(file);
-
-          if (uploadResult) {
-            updatedUserData.image = uploadResult.secure_url;
-            this.logger.info(`Uploaded image: ${updatedUserData.image}`);
-          } else {
-            throw new InternalServerErrorException(
-              'Failed to upload image to Cloudinary',
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            `Error uploading image to Cloudinary: ${error.message}`,
-            error.stack,
-          );
-          throw new InternalServerErrorException(
-            'Failed to upload image to Cloudinary',
-          );
-        }
-      }
+      const updatedUserData: Partial<User> = await this.UpdatedUserData(
+        updateRequest,
+        file,
+      );
 
       const updatedUser = await this.prismaService.user.update({
         where: { email: user.email },
@@ -129,28 +104,59 @@ export class UserService {
 
       return this.toUserResponse(updatedUser);
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
+      this.handleError(error);
+    }
+  }
 
-      this.logger.error('Error updating user profile:', error);
-      throw new InternalServerErrorException(error);
+  private async UpdatedUserData(
+    updateRequest: UpdateUserRequest,
+    file?: Express.Multer.File,
+  ): Promise<Partial<User>> {
+    const updatedUserData: Partial<User> = {};
+
+    if (updateRequest.name) updatedUserData.name = updateRequest.name;
+
+    if (updateRequest.password) {
+      updatedUserData.password = await bcrypt.hash(updateRequest.password, 10);
+    }
+
+    if (updateRequest.role) updatedUserData.role = updateRequest.role;
+
+    if (file) {
+      updatedUserData.image = await this.uploadImage(file);
+    }
+
+    return updatedUserData;
+  }
+
+  private async uploadImage(file: Express.Multer.File): Promise<string | null> {
+    try {
+      const uploadResult = await this.uploadService.uploadImage(file);
+      if (uploadResult) {
+        this.logger.info(`Uploaded image: ${uploadResult.secure_url}`);
+        return uploadResult.secure_url;
+      } else {
+        throw new InternalServerErrorException(
+          'Failed to upload image to Cloudinary',
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Error uploading image: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(
+        'Failed to upload image to Cloudinary',
+      );
     }
   }
 
   async logout(user: User): Promise<{ message: string; success: boolean }> {
     try {
       await this.prismaService.user.update({
-        where: {
-          email: user.email,
-        },
-        data: {
-          accessToken: null,
-        },
+        where: { email: user.email },
+        data: { accessToken: null },
       });
 
       this.logger.info(
-        `USER SERVICE | LOGOUT : User with email: ${user.email} has logged out successfully.`,
+        `USER SERVICE | LOGOUT : User with email: ${user.email} has logged out`,
       );
 
       return {
@@ -158,7 +164,7 @@ export class UserService {
         success: true,
       };
     } catch (error) {
-      throw new InternalServerErrorException(error);
+      this.handleError(error);
     }
   }
 }

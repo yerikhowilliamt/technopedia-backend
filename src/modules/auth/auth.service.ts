@@ -35,18 +35,18 @@ export class AuthService {
       const userExists = await this.prismaService.user.count({
         where: { email },
       });
-  
+
       if (userExists) {
         this.logger.warn('Email already registered', { email });
         throw new BadRequestException('This email is already registered.');
       }
     } catch (error) {
       if (error instanceof BadRequestException) {
-        throw error
+        throw error;
       }
-      
+
       this.logger.error('Error checking if email exists', { error });
-      throw new InternalServerErrorException(error)
+      throw new InternalServerErrorException(error);
     }
   }
 
@@ -116,7 +116,7 @@ export class AuthService {
       return account;
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new BadRequestException(error.message)
+        throw new BadRequestException(error.message);
       }
 
       this.logger.error('Error during validation', { error });
@@ -133,11 +133,11 @@ export class AuthService {
       const user = await this.prismaService.user.findUnique({
         where: { id: userId },
       });
-  
+
       if (!user) {
         throw new NotFoundException('User not found');
       }
-  
+
       return {
         id: user.id,
         name: user.name,
@@ -149,10 +149,10 @@ export class AuthService {
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
-        throw error
+        throw error;
       }
 
-      throw new InternalServerErrorException(error)
+      throw new InternalServerErrorException(error);
     }
   }
 
@@ -190,7 +190,7 @@ export class AuthService {
       };
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new BadRequestException(error.message)
+        throw new BadRequestException(error.message);
       }
 
       this.logger.error('Error during registration', { error });
@@ -241,11 +241,11 @@ export class AuthService {
       };
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new BadRequestException(error.message)
+        throw new BadRequestException(error.message);
       }
 
       if (error instanceof UnauthorizedException) {
-        throw error
+        throw error;
       }
 
       this.logger.error('Error during login', { error });

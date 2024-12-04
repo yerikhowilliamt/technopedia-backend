@@ -16,7 +16,7 @@ import {
   RegisterUserRequest,
   UserResponse,
 } from '../../model/user.model';
-import WebResponse from '../../model/web.model';
+import WebResponse, { Paging } from '../../model/web.model';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local.guard';
 import { GoogleAuthGuard } from './guards/google.guard';
@@ -28,17 +28,27 @@ export class AuthController {
     private authService: AuthService,
   ) {}
 
+  private toAuthResponse<T>(
+    data: T,
+    statusCode: number,
+    paging?: Paging,
+  ): WebResponse<T> {
+    return {
+      data,
+      statusCode,
+      timestamp: new Date().toString(),
+      ...(paging ? { paging } : {}),
+    };
+  }
+
   @Post('register')
   async register(
     @Body() request: RegisterUserRequest,
   ): Promise<WebResponse<UserResponse>> {
     try {
       const result = await this.authService.register(request);
-      return {
-        data: result,
-        statusCode: 201,
-        timestamp: new Date().toString(),
-      };
+
+      return this.toAuthResponse(result, 201);
     } catch (error) {
       this.logger.error('Registration failed', error);
       throw error;
@@ -55,7 +65,9 @@ export class AuthController {
 
   @Get('google/redirect')
   @UseGuards(GoogleAuthGuard)
-  async googleAuthRedirect(@Req() req) {
+  async googleAuthRedirect(
+    @Req() req,
+  ): Promise<WebResponse<{ message: string; user: UserResponse }>> {
     try {
       const { user } = req;
 
@@ -64,17 +76,22 @@ export class AuthController {
         throw new UnauthorizedException('Google authentication failed');
       }
 
-      const userId = user.id
+      const userId = user.id;
       const currentUser = await this.authService.findUserById(userId);
-  
-      return {
-        message: 'Google Account Information',
-        user: currentUser,
-      };
 
+      return this.toAuthResponse(
+        {
+          message: 'Google Account Information',
+          user: currentUser,
+        },
+        200,
+      );
     } catch (error) {
-      this.logger.error('Error during Google OAuth redirect', error);
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
 
+      this.logger.error('Error during Google OAuth redirect', error);
       throw error;
     }
   }
@@ -87,11 +104,8 @@ export class AuthController {
   ): Promise<WebResponse<UserResponse>> {
     try {
       const result = await this.authService.login(request);
-      return {
-        data: result,
-        statusCode: 200,
-        timestamp: new Date().toString(),
-      };
+
+      return this.toAuthResponse(result, 200);
     } catch (error) {
       this.logger.error('Login failed', error);
       throw error;
