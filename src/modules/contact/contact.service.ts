@@ -17,6 +17,7 @@ import {
 import { Logger } from 'winston';
 import { ContactValidation } from './contact.validation';
 import { ZodError } from 'zod';
+import WebResponse from '../../model/web.model';
 
 @Injectable()
 export class ContactService {
@@ -34,6 +35,24 @@ export class ContactService {
       createdAt: contact.createdAt.toISOString(),
       updatedAt: contact.updatedAt.toISOString(),
     };
+  }
+
+  private async checkExistingUser(email: string): Promise<User> {
+    this.logger.warn(
+      `Checking user existence with email: ${email}`,
+    );
+
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        email
+      }
+    })
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user
   }
 
   private async checkExistingContact(
@@ -109,6 +128,50 @@ export class ContactService {
       return this.toContactResponse(contact);
     } catch (error) {
       this.handleError(error);
+    }
+  }
+
+  async list(
+    user: User,
+    page: number = 1,
+    size: number = 10,
+  ): Promise<WebResponse<ContactResponse[]>> {
+    this.logger.warn(
+      `CONTACT SERVICE | LIST: ${user.email} trying to retrive list of contacts }`,
+    );
+
+    try {
+      const currentUser = await this.checkExistingUser(user.email);
+
+      const skip = (page - 1) * size;
+
+      const [contacts, total] = await Promise.all([
+        this.prismaService.contact.findMany({
+          where: { userId: currentUser.id },
+          skip: skip,
+          take: size,
+        }),
+        this.prismaService.contact.count({
+          where: { userId: currentUser.id },
+        })
+      ])
+
+      if (contacts.length === 0) {
+        throw new NotFoundException('Contacts not found')
+      }
+
+      const totalPage = Math.ceil(total / size);
+
+      return {
+        data: contacts.map(this.toContactResponse),
+        paging: {
+          current_page: page,
+          size: size,
+          total_page: totalPage
+        }
+      }
+    } catch (error) {
+      this.handleError(error)
     }
   }
 

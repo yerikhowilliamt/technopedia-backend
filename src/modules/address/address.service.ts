@@ -42,6 +42,24 @@ export class AddressService {
     };
   }
 
+  private async checkExistingUser(email: string): Promise<User> {
+    this.logger.warn(
+      `Checking user existence with email: ${email}`,
+    );
+
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        email
+      }
+    })
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user
+  }
+
   private async checkExistingAddress(
     id: number,
     userId: number,
@@ -183,31 +201,34 @@ export class AddressService {
 
   async list(
     user: User,
-    limit: number = 5,
+    size: number = 5,
     page: number = 1,
   ): Promise<WebResponse<AddressResponse[]>> {
     this.logger.info(
-      `ADDRESS SERVICE | List addresses: user: { email: ${user.email}, id: ${user.id} }, limit: ${limit}, page: ${page}`,
+      `ADDRESS SERVICE | List addresses: user: { email: ${user.email}, id: ${user.id} }, size: ${size}, page: ${page}`,
     );
 
     try {
-      const skip = (page - 1) * limit;
+      const currentUser = await this.checkExistingUser(user.email);
+      
+      const skip = (page - 1) * size;
+      
       const [addresses, total] = await Promise.all([
         this.prismaService.address.findMany({
-          where: { userId: user.id },
-          skip,
-          take: limit,
+          where: { userId: currentUser.id },
+          skip: skip,
+          take: size,
         }),
         this.prismaService.address.count({
-          where: { userId: user.id },
+          where: { userId: currentUser.id },
         }),
       ]);
 
-      const totalPages = Math.ceil(total / limit);
+      const totalPages = Math.ceil(total / size);
       return {
         data: addresses.map(this.toAddressResponse),
         paging: {
-          size: limit,
+          size: size,
           current_page: page,
           total_page: totalPages,
         },

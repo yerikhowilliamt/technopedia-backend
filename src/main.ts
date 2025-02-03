@@ -8,8 +8,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT || 4000;
 
+  app.enableCors({
+    origin: 'http://localhost:3000', // Ganti dengan URL frontend kamu
+    methods: 'GET,POST, FETCH, PUT,DELETE', // Metode HTTP yang diizinkan
+    allowedHeaders: 'Content-Type, Authorization', // Header yang diizinkan
+    credentials: true,
+  });
+
   app.setGlobalPrefix('api');
-  app.enableCors();
+
   await app.listen(port);
 }
 bootstrap();

@@ -51,7 +51,7 @@ export class FileUploadService {
     );
 
     try {
-      return await Promise.all(uploadPromises); // Menunggu semua gambar selesai diunggah
+      return await Promise.all(uploadPromises);
     } catch (error) {
       throw new Error('Failed to upload one or more images');
     }

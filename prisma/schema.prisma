@@ -35,17 +35,17 @@ model User {
 }
 
 model Account {
-  id                  Int         @id                             @default(autoincrement())
-  userId              Int                                         @map("user_id")
+  id                  Int         @id               @default(autoincrement())
+  userId              Int                           @map("user_id")
   provider            String
-  providerAccountId   String      @unique                         @map("provider_account_id")
-  accessToken         String?     @db.Text                        @map("access_token")
-  refreshToken        String?     @db.Text                        @map("refresh_token")
+  providerAccountId   String      @unique           @map("provider_account_id")
+  accessToken         String?     @db.Text          @map("access_token")
+  refreshToken        String?     @db.Text          @map("refresh_token")
 
-  createdAt           DateTime    @default(now())                 @map("created_at")
-  updatedAt           DateTime    @updatedAt                      @map("updated_at")
+  createdAt           DateTime    @default(now())   @map("created_at")
+  updatedAt           DateTime    @updatedAt        @map("updated_at")
  
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
  
   @@index([userId, providerAccountId])
   @@unique([provider, providerAccountId])
@@ -53,47 +53,134 @@ model Account {
 }
 
 model Contact {
-  id                  Int         @id                             @default(autoincrement())
-  userId              Int                                         @map("user_id")
+  id                  Int         @id                @default(autoincrement())
+  userId              Int                            @map("user_id")
   phone               String      @db.VarChar(20)
 
-  createdAt           DateTime    @default(now())                 @map("created_at")
-  updatedAt           DateTime    @updatedAt                      @map("updated_at")
+  createdAt           DateTime    @default(now())    @map("created_at")
+  updatedAt           DateTime    @updatedAt         @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("contacts")
 }
 
 model Address {
-  id                  Int         @id                             @default(autoincrement())
-  userId              Int                                         @map("user_id")
+  id                  Int         @id                @default(autoincrement())
+  userId              Int                            @map("user_id")
   street              String      @db.VarChar(255)
   city                String      @db.VarChar(100)
   province            String      @db.VarChar(100)
   country             String      @db.VarChar(100)
-  postalCode          String      @db.VarChar(10)                 @map("postal_code")
-  isPrimary           Boolean     @default(false)                 @map("is_primary")
+  postalCode          String      @db.VarChar(10)    @map("postal_code")
+  isPrimary           Boolean     @default(false)    @map("is_primary")
 
   createdAt           DateTime    @default(now())                 @map("created_at")
   updatedAt           DateTime    @updatedAt                      @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, street])
   @@map("addresses")
 }
 
 model Store {
-  id                  Int         @id                             @default(autoincrement())
-  userId              Int                                         @map("user_id")
+  id                  Int         @id                @default(autoincrement())
+  userId              Int                            @map("user_id")
   name                String
 
-  createdAt           DateTime    @default(now())                 @map("created_at")
-  updatedAt           DateTime    @updatedAt                      @map("updated_at")
+  createdAt           DateTime    @default(now())    @map("created_at")
+  updatedAt           DateTime    @updatedAt         @map("updated_at")
+  banners             Banner[]
+  categories          Category[]
+  colors              Color[]
+  products            Product[]
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@map("stores")
+}
+
+model Banner {
+  id                  Int         @id                @default(autoincrement())
+  storeId             Int                            @map("user_id")
+  name                String
+  imageUrl            String
+
+  createdAt           DateTime    @default(now())    @map("created_at")
+  updatedAt           DateTime    @updatedAt         @map("updated_at")
+
+  store               Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  @@index([storeId])
+  @@map("banners")
+}
+
+model Category {
+  id                  Int         @id                @default(autoincrement())
+  storeId             Int                            @map("user_id")
+  name                String
+  
+  createdAt           DateTime    @default(now())    @map("created_at")
+  updatedAt           DateTime    @updatedAt         @map("updated_at")
+  products            Product[]
+
+  store               Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  @@index([storeId])
+  @@map("categories")
+}
+
+model Color {
+  id                  Int         @id                @default(autoincrement())
+  storeId             Int                            @map("user_id")
+  name                String
+  value               String
+  
+  createdAt           DateTime    @default(now())    @map("created_at")
+  updatedAt           DateTime    @updatedAt         @map("updated_at")
+  products            Product[]
+
+  store               Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  @@index([storeId])
+  @@map("colors")
+}
+
+model Product {
+  id                  Int         @id                @default(autoincrement())
+  storeId             Int                            @map("user_id")
+  categoryId          Int
+  colorId             Int
+  name                String
+  price               Decimal
+  isFeatured          Boolean
+  isArchived          Boolean
+  
+  createdAt           DateTime    @default(now())    @map("created_at")
+  updatedAt           DateTime    @updatedAt         @map("updated_at")
+  images              Image[]
+
+  store               Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category            Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  color               Color       @relation(fields: [colorId], references: [id], onDelete: Cascade)
+  
+  @@index([storeId])
+  @@map("products")
+}
+
+model Image {
+  id                  Int         @id                @default(autoincrement())
+  productId           Int                            @map("user_id")
+  url                 String
+  
+  createdAt           DateTime    @default(now())    @map("created_at")
+  updatedAt           DateTime    @updatedAt         @map("updated_at")
+
+  product             Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@index([productId])
+  @@map("images")
 }
