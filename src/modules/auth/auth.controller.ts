@@ -6,6 +6,7 @@ import {
   Inject,
   Post,
   Req,
+  Res,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import WebResponse, { Paging } from '../../model/web.model';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local.guard';
 import { GoogleAuthGuard } from './guards/google.guard';
+import { Response } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -65,34 +67,27 @@ export class AuthController {
 
   @Get('google/redirect')
   @UseGuards(GoogleAuthGuard)
-  async googleAuthRedirect(
-    @Req() req,
-  ): Promise<WebResponse<{ message: string; user: UserResponse }>> {
+  async googleAuthRedirect(@Req() req, @Res() res: Response): Promise<void> {
     try {
       const { user } = req;
-
-      if (!user) {
-        this.logger.warn('Google OAuth redirect failed: No user data');
+      if (!user)
         throw new UnauthorizedException('Google authentication failed');
-      }
 
       const userId = user.id;
       const currentUser = await this.authService.findUserById(userId);
+      const accessToken = currentUser.accessToken;
 
-      return this.toAuthResponse(
-        {
-          message: 'Google Account Information',
-          user: currentUser,
-        },
-        200,
-      );
+      res
+        .cookie('accessToken', accessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 24 * 60 * 60 * 1000, // 1 hari
+        })
+        .redirect('http://localhost:3000');
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-
-      this.logger.error('Error during Google OAuth redirect', error);
-      throw error;
+      console.error('Error during Google OAuth redirect:', error);
+      throw new UnauthorizedException('Authentication failed');
     }
   }
 
@@ -110,5 +105,17 @@ export class AuthController {
       this.logger.error('Login failed', error);
       throw error;
     }
+  }
+
+  @Post('logout')
+  @HttpCode(200)
+  logout(@Res() res: Response) {
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+
+    return res.json({ message: 'Logout successful' });
   }
 }

@@ -128,11 +128,11 @@ export class StoreService {
     user: User,
     request: UpdateStoreRequest,
   ): Promise<StoreResponse> {
-    try {
-      this.logger.info(
-        `STORE SERVICE | UPDATE: ${user.email} trying to update contact`,
-      );
+    this.logger.info(
+      `STORE SERVICE | UPDATE: ${user.email} trying to update store`,
+    );
 
+    try {
       const updateRequest: UpdateStoreRequest =
         await this.validationService.validate(StoreValidation.UPDATE, request);
 
@@ -155,11 +155,11 @@ export class StoreService {
     user: User,
     id: number,
   ): Promise<{ message: string; success: boolean }> {
+    this.logger.info(
+      `STORE SERVICE | DELETE: ${user.email} trying to delete storeId: ${id}`,
+    );
+    
     try {
-      this.logger.info(
-        `STORE SERVICE | DELETE: ${user.email} trying to delete storeId: ${id}`,
-      );
-
       const store = await this.checkExistingStore(user.id, id);
 
       await this.prismaService.store.delete({

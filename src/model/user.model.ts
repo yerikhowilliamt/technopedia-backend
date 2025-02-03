@@ -18,7 +18,7 @@ export enum UserRole {
 export class ValidateUserRequest {
   name: string;
   email: string;
-  emailVerified: boolean;
+  emailVerified?: boolean;
   image: string;
   accessToken: string;
   refreshToken?: string;

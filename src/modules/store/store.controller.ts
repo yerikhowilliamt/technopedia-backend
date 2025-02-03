@@ -81,7 +81,7 @@ export class StoreController {
 
       const result = await this.storeService.create(user, request);
 
-      return this.toStoreResponse(result, 200);
+      return this.toStoreResponse(result, 201);
     } catch (error) {
       this.handleError(error);
     }

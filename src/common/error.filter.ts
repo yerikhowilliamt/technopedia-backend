@@ -21,9 +21,20 @@ export class ErrorFilter implements ExceptionFilter {
       const status = exception.getStatus();
       const responseBody = exception.getResponse();
 
+      const errors = Array.isArray(responseBody) ? responseBody : [responseBody];
+
+      const simplifiedErrors = errors.map((err) => {
+        try {
+          const parsedError = JSON.parse(err.message);
+          return { message: parsedError[0]?.message || 'Unknown error' };
+        } catch (e) {
+          return { message: err.message || 'Unknown error' };
+        }
+      });
+
       response.status(status).json({
         success: false,
-        errors: Array.isArray(responseBody) ? responseBody : [responseBody],
+        errors: simplifiedErrors,
         timestamp,
       });
     } else if (exception instanceof ZodError) {

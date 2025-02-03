@@ -10,6 +10,7 @@ import {
   Put,
   UseGuards,
   Inject,
+  Query,
 } from '@nestjs/common';
 import { ContactService } from './contact.service';
 import { Auth } from '../../common/auth/auth.decorator';
@@ -77,11 +78,30 @@ export class ContactController {
 
       const result = await this.contactService.create(user, request);
 
-      return this.toContactResponse(result, 200);
+      return this.toContactResponse(result, 201);
     } catch (error) {
       this.handleError(error);
     }
   }
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async list(
+    @Auth() user: User,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('limit', ParseIntPipe) limit: number = 10,
+  ): Promise<WebResponse<ContactResponse[]>> {
+      try {
+        this.checkAuthorization(userId, user);
+
+        const result = await this.contactService.list(user, page, limit);
+
+        return this.toContactResponse(result.data, 200, result.paging)
+      } catch (error) {
+        this.handleError(error)
+      }
+    }
 
   @Get(':contactId')
   @UseGuards(JwtAuthGuard)

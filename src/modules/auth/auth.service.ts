@@ -37,7 +37,7 @@ export class AuthService {
       });
 
       if (userExists) {
-        this.logger.warn('Email already registered', { email });
+        this.logger.warn('Email already registered');
         throw new BadRequestException('This email is already registered.');
       }
     } catch (error) {
@@ -59,6 +59,7 @@ export class AuthService {
   }
 
   async validate(request: ValidateUserRequest) {
+    console.log('Validate request:', request);
     try {
       this.logger.debug('Validating user request', { request });
 
@@ -117,10 +118,12 @@ export class AuthService {
     } catch (error) {
       if (error instanceof ZodError) {
         throw new BadRequestException(error.message);
+      } else if (error instanceof BadRequestException) {
+        throw error;
+      } else {
+        this.logger.error('Error during validation', { error });
+        throw new InternalServerErrorException('Validation failed');
       }
-
-      this.logger.error('Error during validation', { error });
-      throw new InternalServerErrorException('Validation failed');
     }
   }
 
@@ -191,10 +194,14 @@ export class AuthService {
     } catch (error) {
       if (error instanceof ZodError) {
         throw new BadRequestException(error.message);
+      } else if (error instanceof BadRequestException) {
+        throw error;
+      } else {
+        this.logger.error('Error during registration', { error });
+        throw new InternalServerErrorException(
+          'Registration failed. Please try again.',
+        );
       }
-
-      this.logger.error('Error during registration', { error });
-      throw new InternalServerErrorException('Registration failed');
     }
   }
 
@@ -216,6 +223,7 @@ export class AuthService {
         validatedRequest.password,
         user.password,
       );
+
       if (!isPasswordValid) {
         throw new UnauthorizedException('Invalid email or password');
       }
@@ -240,16 +248,20 @@ export class AuthService {
         updatedAt: user.updatedAt.toISOString(),
       };
     } catch (error) {
+      console.error('Error during login:', error);
       if (error instanceof ZodError) {
         throw new BadRequestException(error.message);
-      }
-
-      if (error instanceof UnauthorizedException) {
+      } else if (
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
+      } else {
+        this.logger.error('Error during login', { error });
+        throw new InternalServerErrorException(
+          'Login failed. Please try again.',
+        );
       }
-
-      this.logger.error('Error during login', { error });
-      throw new InternalServerErrorException('Login failed');
     }
   }
 }
