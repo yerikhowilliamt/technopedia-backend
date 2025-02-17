@@ -8,17 +8,18 @@ import {
 import { Image, Product } from '@prisma/client';
 import { UploadApiErrorResponse, UploadApiResponse } from 'cloudinary';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
-import { FileUploadService } from 'src/common/file-upload.service';
-import { PrismaService } from 'src/common/prisma.service';
-import { ValidationService } from 'src/common/validation.service';
+import { FileUploadService } from '../../common/file-upload.service';
+import { PrismaService } from '../../common/prisma.service';
+import { ValidationService } from '../../common/validation.service';
 import {
   CreateImageRequest,
   ImageResponse,
   UpdateImageRequest,
-} from 'src/model/image.model';
+} from '../../model/image.model';
 import { Logger } from 'winston';
 import { ZodError } from 'zod';
 import { ImageValidation } from './image.validation';
+import WebResponse from 'src/model/web.model';
 
 @Injectable()
 export class ImageService {
@@ -29,14 +30,15 @@ export class ImageService {
     private readonly fileUploadService: FileUploadService,
   ) {}
 
-  private toImageResponse(image: Image): ImageResponse {
-    return {
+  private toImageResponse(images: Image[]): ImageResponse[] {
+    return images.map((image) => ({
       id: image.id,
       productId: image.productId,
       url: image.url,
+      publicId: image.publicId,
       createdAt: image.createdAt.toISOString(),
       updatedAt: image.updatedAt.toISOString(),
-    };
+    }));
   }
 
   // Generalized error handler
@@ -69,7 +71,7 @@ export class ImageService {
       throw new NotFoundException('Product not found');
     }
 
-    this.logger.info(`Product found: ${JSON.stringify(product)}`);
+    this.logger.info(`Product found: ${JSON.stringify(product.id)}`);
     return product;
   }
 
@@ -79,40 +81,81 @@ export class ImageService {
     files: Express.Multer.File[],
   ): Promise<ImageResponse[]> {
     this.logger.info(
-      `Uploading ${files.length} files for productId: ${productId}`,
+      `IMAGE SERVICE | UPLOAD AND SAVE IMAGES : Uploading ${files.length} files for productId: ${productId}`,
     );
+    try {
+      // Pastikan upload berhasil
+      const uploadResults = await this.fileUploadService.uploadImages(files);
 
-    const uploadResults = await this.fileUploadService.uploadImages(files);
+      // Debug uploadResults untuk memastikan ada hasil yang benar
+      uploadResults.forEach((result) => {
+        this.logger.info(
+          `IMAGE SERVICE | UPLOAD AND SAVE IMAGES : Upload results: ${JSON.stringify(result)}`,
+        );
+      });
 
-    const images = await Promise.all(
-      uploadResults.map(
-        async (uploadResult: UploadApiResponse | UploadApiErrorResponse) => {
-          if ('secure_url' in uploadResult) {
-            this.logger.info(
-              `Image uploaded successfully: ${uploadResult.secure_url}`,
-            );
-            const image = await this.prismaService.image.create({
-              data: {
-                productId,
-                url: uploadResult.secure_url,
-              },
-            });
-            return this.toImageResponse(image);
-          }
-          this.logger.error('Failed to upload one or more images');
-          throw new Error('Failed to upload one or more images');
-        },
-      ),
-    );
+      const imagePromises = uploadResults.map(async (result) => {
+        if (result instanceof Error) {
+          throw new Error(result.message);
+        }
 
-    return images;
+        // Pastikan result memiliki secure_url
+        if (!result.secure_url) {
+          throw new Error('URL for uploaded image is undefined');
+        }
+
+        const image = await this.prismaService.image.create({
+          data: {
+            productId,
+            url: result.secure_url,
+            publicId: result.public_id,
+          },
+        });
+
+        return image;
+      });
+
+      const images = await Promise.all(imagePromises);
+      return this.toImageResponse(images);
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  // Upload image
+  async uploadImage(image: Express.Multer.File): Promise<string> {
+    if (!image) {
+      throw new BadRequestException('No image provided for upload');
+    }
+
+    try {
+      const uploadResult = await this.fileUploadService.uploadImage(image);
+      if (!uploadResult?.secure_url) {
+        throw new InternalServerErrorException(
+          'Failed to upload image to Cloudinary',
+        );
+      }
+
+      this.logger.warn(
+        `IMAGE SERVICE | UPLOAD IMAGE : Uploaded result: ${JSON.stringify(uploadResult)}`,
+      );
+      return uploadResult.secure_url;
+    } catch (error) {
+      this.handleError(error);
+    }
   }
 
   // Upload multiple images for a product
   async uploadImages(
     request: CreateImageRequest,
-    files: Express.Multer.File[],
+    images: Express.Multer.File[],
   ): Promise<ImageResponse[]> {
+    this.logger.warn(
+      `IMAGE SERVICE | UPLOAD IMAGES : product_id: ${JSON.stringify(request.productId)}, url: ${images.map((image) => image.originalname)}`,
+    );
+
+    console.log('Request Body:', request); // Log request untuk memeriksa data yang masuk
+    console.log('Images:', images); // Log files yang di-upload
     try {
       const createRequest = await this.validationService.validate(
         ImageValidation.CREATE,
@@ -121,7 +164,48 @@ export class ImageService {
       const product = await this.checkExistingProduct(createRequest.productId);
 
       // Upload and save images
-      return await this.uploadAndSaveImages(product.id, files);
+      return await this.uploadAndSaveImages(product.id, images);
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+  // Retrive all the images
+  async list(
+    productId: number,
+    page = 1,
+    size = 10,
+  ): Promise<WebResponse<ImageResponse[]>> {
+    this.logger.warn(
+      `IMAGE SERVICE | LIST: product_id: ${JSON.stringify(productId)} retrieving product list`,
+    );
+
+    try {
+      const product = await this.checkExistingProduct(productId);
+
+      const skip = (page - 1) * size;
+      const [images, total] = await Promise.all([
+        this.prismaService.image.findMany({
+          where: { productId: product.id },
+          skip,
+          take: size,
+        }),
+        this.prismaService.image.count({ where: { productId: product.id } }),
+      ]);
+
+      if (!images.length) throw new NotFoundException('Images not found');
+
+      this.logger.info(
+        `IMAGE SERVICE | FETCH SUCCESS: Retrieved ${images.length} images`,
+      );
+
+      return {
+        data: this.toImageResponse(images),
+        paging: {
+          current_page: page,
+          size,
+          total_page: Math.ceil(total / size),
+        },
+      };
     } catch (error) {
       this.handleError(error);
     }
@@ -145,7 +229,7 @@ export class ImageService {
       }
 
       this.logger.info(`Image found: ${JSON.stringify(image)}`);
-      return this.toImageResponse(image);
+      return this.toImageResponse([image])[0];
     } catch (error) {
       this.handleError(error);
     }
@@ -172,12 +256,11 @@ export class ImageService {
         `Deleting image with ID ${imageId} and URL: ${image.url}`,
       );
 
-      // Optional: Delete from Cloudinary
-      // await v2.uploader.destroy(image.public_id);
-
       await this.prismaService.image.delete({
         where: { id: imageId },
       });
+
+      await this.fileUploadService.deleteImage(image.publicId.toString());
 
       this.logger.info(`Image with ID ${imageId} deleted successfully`);
 
@@ -246,11 +329,11 @@ export class ImageService {
       this.logger.info(
         `Image with ID ${updateRequest.id} updated successfully`,
       );
-      return this.toImageResponse(
-        await this.prismaService.image.findUnique({
-          where: { id: updateRequest.id },
-        }),
-      );
+
+      const images = await this.prismaService.image.findUnique({
+        where: { id: updateRequest.id },
+      });
+      return this.toImageResponse([images])[0];
     } catch (error) {
       this.handleError(error);
     }

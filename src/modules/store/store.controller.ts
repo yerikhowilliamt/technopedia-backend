@@ -76,7 +76,7 @@ export class StoreController {
       this.logger.warn(
         `STORE CONTROLLER | CREATE: {userId: ${JSON.stringify(userId)}}`,
       );
-
+      
       this.checkAuthorization(userId, user);
 
       const result = await this.storeService.create(user, request);

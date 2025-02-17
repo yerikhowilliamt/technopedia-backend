@@ -4,6 +4,7 @@ import toStream = require('buffer-to-stream');
 
 @Injectable()
 export class FileUploadService {
+  // Upload a single image
   async uploadImage(
     file: Express.Multer.File,
   ): Promise<UploadApiResponse | UploadApiErrorResponse> {
@@ -25,6 +26,7 @@ export class FileUploadService {
     });
   }
 
+  // Upload multiple images
   async uploadImages(
     files: Express.Multer.File[],
   ): Promise<(UploadApiResponse | UploadApiErrorResponse)[]> {
@@ -54,6 +56,24 @@ export class FileUploadService {
       return await Promise.all(uploadPromises);
     } catch (error) {
       throw new Error('Failed to upload one or more images');
+    }
+  }
+
+  // Delete image based on public_id
+  async deleteImage(
+    publicId: string,
+  ): Promise<{ message: string; result: any }> {
+    try {
+      const result = await v2.uploader.destroy(publicId);
+      return {
+        message: 'Successfully deleted image',
+        result,
+      };
+    } catch (error) {
+      throw {
+        message: 'Failed to delete image',
+        error,
+      };
     }
   }
 }

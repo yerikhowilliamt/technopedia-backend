@@ -1,6 +1,7 @@
 export class ImageResponse {
   id: number;
   productId: number;
+  publicId: number;
   url: string;
   createdAt: string;
   updatedAt: string;
@@ -8,11 +9,10 @@ export class ImageResponse {
 
 export class CreateImageRequest {
   productId: number;
-  url: string;
 }
 
 export class UpdateImageRequest {
   id: number;
   productId: number;
-  url: string;
+  publicId: number;
 }

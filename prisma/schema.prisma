@@ -105,7 +105,7 @@ model Store {
 
 model Banner {
   id                  Int         @id                @default(autoincrement())
-  storeId             Int                            @map("user_id")
+  storeId             Int                            @map("store_id")
   name                String
   imageUrl            String
 
@@ -120,7 +120,7 @@ model Banner {
 
 model Category {
   id                  Int         @id                @default(autoincrement())
-  storeId             Int                            @map("user_id")
+  storeId             Int                            @map("store_id")
   name                String
   
   createdAt           DateTime    @default(now())    @map("created_at")
@@ -135,7 +135,7 @@ model Category {
 
 model Color {
   id                  Int         @id                @default(autoincrement())
-  storeId             Int                            @map("user_id")
+  storeId             Int                            @map("store_id")
   name                String
   value               String
   
@@ -151,13 +151,14 @@ model Color {
 
 model Product {
   id                  Int         @id                @default(autoincrement())
-  storeId             Int                            @map("user_id")
-  categoryId          Int
-  colorId             Int
+  storeId             Int                            @map("store_id")
+  categoryId          Int                            @map("category_id")
+  colorId             Int                            @map("color_id")
   name                String
-  price               Decimal
-  isFeatured          Boolean
-  isArchived          Boolean
+  price               BigInt
+  description         String      @db.Text()
+  isFeatured          Boolean     @default(true)     @map("is_featured")
+  isArchived          Boolean     @default(false)    @map("is_archived")
   
   createdAt           DateTime    @default(now())    @map("created_at")
   updatedAt           DateTime    @updatedAt         @map("updated_at")
@@ -168,12 +169,18 @@ model Product {
   color               Color       @relation(fields: [colorId], references: [id], onDelete: Cascade)
   
   @@index([storeId])
+  @@index([name])
+  @@index([categoryId])
+  @@index([colorId])
+  @@index([price])
+
   @@map("products")
 }
 
 model Image {
   id                  Int         @id                @default(autoincrement())
-  productId           Int                            @map("user_id")
+  productId           Int                            @map("product_id")
+  publicId            Int                            @map("public_id")
   url                 String
   
   createdAt           DateTime    @default(now())    @map("created_at")

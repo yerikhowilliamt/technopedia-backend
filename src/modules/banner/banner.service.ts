@@ -17,8 +17,8 @@ import {
 import { Logger } from 'winston';
 import { ZodError } from 'zod';
 import { BannerValidation } from './banner.validation';
-import { FileUploadService } from '../../common/file-upload.service';
 import WebResponse from '../../model/web.model';
+import { ImageService } from '../image/image.service';
 
 @Injectable()
 export class BannerService {
@@ -26,7 +26,7 @@ export class BannerService {
     @Inject(WINSTON_MODULE_PROVIDER) private logger: Logger,
     private prismaService: PrismaService,
     private validationService: ValidationService,
-    private uploadService: FileUploadService,
+    private imageService: ImageService,
   ) {}
 
   private toBannerResponse(banner: Banner): BannerResponse {
@@ -83,29 +83,6 @@ export class BannerService {
     return banner;
   }
 
-  private async uploadImage(file: Express.Multer.File): Promise<string> {
-    if (!file) {
-      throw new BadRequestException('No file provided for upload');
-    }
-
-    try {
-      const uploadResult = await this.uploadService.uploadImage(file);
-      if (!uploadResult?.secure_url) {
-        throw new InternalServerErrorException(
-          'Failed to upload image to Cloudinary',
-        );
-      }
-
-      this.logger.warn(`Uploaded image: ${uploadResult.secure_url}`);
-      return uploadResult.secure_url;
-    } catch (error) {
-      this.logger.error(`Error uploading image: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(
-        'An error occurred while uploading the image',
-      );
-    }
-  }
-
   private handleError(error: Error): never {
     if (error instanceof ZodError) {
       throw new BadRequestException(error.message);
@@ -123,7 +100,7 @@ export class BannerService {
   async create(
     user: User,
     request: CreateBannerRequest,
-    file: Express.Multer.File,
+    image: Express.Multer.File,
   ): Promise<BannerResponse> {
     this.logger.warn(
       `BANNER SERVICE | CREATE: { user_id: ${user.id}, banner_name: ${request.name} }`,
@@ -138,8 +115,8 @@ export class BannerService {
       const createRequest: CreateBannerRequest =
         await this.validationService.validate(BannerValidation.CREATE, request);
 
-      if (file) {
-        createRequest.imageUrl = await this.uploadImage(file);
+      if (image) {
+        createRequest.imageUrl = await this.imageService.uploadImage(image);
       }
 
       const banner = await this.prismaService.banner.create({
@@ -220,7 +197,7 @@ export class BannerService {
   async update(
     user: User,
     request: UpdateBannerRequest,
-    file?: Express.Multer.File,
+    image?: Express.Multer.File,
   ): Promise<BannerResponse> {
     this.logger.warn(
       `BANNER SERVICE | UPDATE: ${user.email} trying to update banner with id: ${JSON.stringify(request.id)}`,
@@ -235,8 +212,8 @@ export class BannerService {
       const updateRequest: UpdateBannerRequest =
         await this.validationService.validate(BannerValidation.UPDATE, request);
 
-      if (file) {
-        updateRequest.imageUrl = await this.uploadImage(file);
+      if (image) {
+        updateRequest.imageUrl = await this.imageService.uploadImage(image);
       }
 
       let banner = await this.checkExistingBanner({

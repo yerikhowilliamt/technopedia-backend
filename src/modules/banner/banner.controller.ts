@@ -58,19 +58,18 @@ export class BannerController {
     ) {
       throw error;
     }
-
     this.logger.error('Unhandled error occurred', { error: error.message, stack: error.stack });
     throw error;
   }
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('image'))
   async create(
     @Auth() user: User,
     @Param('storeId', ParseIntPipe) storeId: number,
     @Body() request: CreateBannerRequest,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() image: Express.Multer.File,
   ): Promise<WebResponse<BannerResponse>> {
     const logData = {
       userId: user.id,
@@ -91,7 +90,7 @@ export class BannerController {
 
       this.logger.info('Creating banner', logData);
 
-      const result = await this.bannerService.create(user, request, file);
+      const result = await this.bannerService.create(user, request, image);
 
       this.logger.info('Banner created successfully', {
         ...logData,
@@ -171,13 +170,13 @@ export class BannerController {
 
   @Put(':bannerId')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('image'))
   async update(
     @Auth() user: User,
     @Param('storeId', ParseIntPipe) storeId: number,
     @Param('bannerId', ParseIntPipe) bannerId: number,
     @Body() request: UpdateBannerRequest,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() image?: Express.Multer.File,
   ): Promise<WebResponse<BannerResponse>> {
     const logData = {
       userId: user.id,
@@ -201,7 +200,7 @@ export class BannerController {
 
       this.logger.info('Updating banner', logData);
 
-      const result = await this.bannerService.update(user, request, file);
+      const result = await this.bannerService.update(user, request, image);
 
       this.logger.info('Banner updated successfully', {
         ...logData,
@@ -237,9 +236,10 @@ export class BannerController {
 
       const result = await this.bannerService.delete(user, storeId, bannerId);
 
-      this.logger.info('Banner deleted successfully', {
+      this.logger.info({
         ...logData,
         success: result.success,
+        message: result.message
       });
 
       return this.toBannerResponse(

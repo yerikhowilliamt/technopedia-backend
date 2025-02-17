@@ -5,6 +5,7 @@ export class ProductResponse {
   colorId: number;
   name: string;
   price: string;
+  description: string;
   isFeatured: boolean;
   isArchived: boolean;
   createdAt: string;
@@ -17,7 +18,7 @@ export class CreateProductRequest {
   colorId: number;
   name: string;
   price: string;
-  imageUrl: string[];
+  description: string;
   isFeatured: boolean;
   isArchived: boolean;
 }
@@ -29,6 +30,7 @@ export class UpdateProductRequest {
   colorId: number;
   name: string;
   price: string;
+  description: string;
   isFeatured: boolean;
   isArchived: boolean;
 }
