@@ -18,6 +18,7 @@ import { Logger } from 'winston';
 import { ZodError } from 'zod';
 import { ProductValidation } from './product.validation';
 import WebResponse from '../../model/web.model';
+import { ImageService } from '../image/image.service';
 
 @Injectable()
 export class ProductService {
@@ -25,6 +26,7 @@ export class ProductService {
     @Inject(WINSTON_MODULE_PROVIDER) private logger: Logger,
     private prismaService: PrismaService,
     private validationService: ValidationService,
+    private imageService: ImageService,
   ) {}
 
   private toProductResponse(product: Product): ProductResponse {
@@ -34,7 +36,8 @@ export class ProductService {
       categoryId: product.categoryId,
       colorId: product.colorId,
       name: product.name,
-      price: product.price.toString(),
+      price: new Intl.NumberFormat('id-ID').format(Number(product.price.toString()) / 100),
+      description: product.description,
       isFeatured: product.isFeatured,
       isArchived: product.isArchived,
       createdAt: product.createdAt.toISOString(),
@@ -83,8 +86,15 @@ export class ProductService {
       where: { id },
     });
 
-    if (!product || product.storeId !== storeId || product.categoryId !== categoryId || product.colorId !== colorId) {
-      throw new NotFoundException('Product not found or does not belong to the store.');
+    if (
+      !product ||
+      product.storeId !== storeId ||
+      product.categoryId !== categoryId ||
+      product.colorId !== colorId
+    ) {
+      throw new NotFoundException(
+        'Product not found or does not belong to the store.',
+      );
     }
 
     return product;
@@ -94,15 +104,23 @@ export class ProductService {
     if (error instanceof ZodError) {
       throw new BadRequestException(error.message);
     }
-    if (error instanceof BadRequestException || error instanceof NotFoundException) {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof NotFoundException
+    ) {
       throw error;
     }
     this.logger.error(`Internal Server Error: ${error.message}`, error.stack);
     throw new InternalServerErrorException('An unexpected error occurred');
   }
 
-  async create(user: User, request: CreateProductRequest): Promise<ProductResponse> {
-    this.logger.warn(`PRODUCT SERVICE | CREATE: { user_id: ${user.id}, product_name: ${request.name} }`);
+  async create(
+    user: User,
+    request: CreateProductRequest,
+  ): Promise<ProductResponse> {
+    this.logger.warn(
+      `PRODUCT SERVICE | CREATE: { user_id: ${JSON.stringify(user.id)}, store_id: ${JSON.stringify(request.storeId)}, categories_id: ${JSON.stringify(request.categoryId)}, colors_id: ${JSON.stringify(request.colorId)}, product_name: ${request.name} }`,
+    );
     try {
       const { store, category, color } = await this.validateStoreCategoryColor({
         userId: user.id,
@@ -111,21 +129,30 @@ export class ProductService {
         colorId: request.colorId,
       });
 
-      const validatedRequest = await this.validationService.validate(ProductValidation.CREATE, request);
+      const createRequest: CreateProductRequest = await this.validationService.validate(
+        ProductValidation.CREATE,
+        request,
+      );
+
+      const numericPrice = Number(createRequest.price.replace(/\./g, ''));
+      const priceInSmallestUnit = Math.round(numericPrice * 100);
 
       const product = await this.prismaService.product.create({
         data: {
           storeId: store.id,
           categoryId: category.id,
           colorId: color.id,
-          name: validatedRequest.name,
-          price: validatedRequest.price,
-          isFeatured: validatedRequest.isFeatured,
-          isArchived: validatedRequest.isArchived,
+          name: createRequest.name,
+          price: priceInSmallestUnit,
+          description: createRequest.description,
+          isFeatured: createRequest.isFeatured,
+          isArchived: createRequest.isArchived,
         },
       });
 
-      this.logger.info(`PRODUCT SERVICE | CREATE SUCCESS: Product ${product.id} created by user ${user.id}`);
+      this.logger.info(
+        `PRODUCT SERVICE | CREATE SUCCESS: Product ${product.id} created by user ${user.id}`,
+      );
 
       return this.toProductResponse(product);
     } catch (error) {
@@ -133,43 +160,81 @@ export class ProductService {
     }
   }
 
-  async list(user: User, storeId: number, page = 1, size = 10): Promise<WebResponse<ProductResponse[]>> {
-    this.logger.warn(`PRODUCT SERVICE | LIST: ${user.email} retrieving product list`);
+  async list(
+    user: User,
+    storeId: number,
+    page = 1,
+    size = 10,
+  ): Promise<WebResponse<ProductResponse[]>> {
+    this.logger.warn(
+      `PRODUCT SERVICE | LIST: ${user.email} retrieving product list`,
+    );
     try {
       await this.validateStoreCategoryColor({ userId: user.id, storeId });
 
       const skip = (page - 1) * size;
       const [products, total] = await Promise.all([
-        this.prismaService.product.findMany({ where: { storeId }, skip, take: size }),
+        this.prismaService.product.findMany({
+          where: { storeId },
+          skip,
+          take: size,
+        }),
         this.prismaService.product.count({ where: { storeId } }),
       ]);
 
       if (!products.length) throw new NotFoundException('Products not found');
 
-      this.logger.info(`PRODUCT SERVICE | FETCH SUCCESS: Retrieved ${products.length} products`);
+      this.logger.info(
+        `PRODUCT SERVICE | FETCH SUCCESS: Retrieved ${products.length} products`,
+      );
 
       return {
         data: products.map(this.toProductResponse),
-        paging: { current_page: page, size, total_page: Math.ceil(total / size) },
+        paging: {
+          current_page: page,
+          size,
+          total_page: Math.ceil(total / size),
+        },
       };
     } catch (error) {
       this.handleError(error);
     }
   }
 
-  async get(user: User, storeId: number, categoryId: number, colorId: number, id: number): Promise<ProductResponse> {
+  async get(
+    user: User,
+    storeId: number,
+    categoryId: number,
+    colorId: number,
+    id: number,
+  ): Promise<ProductResponse> {
     try {
-      await this.validateStoreCategoryColor({ userId: user.id, storeId, categoryId, colorId });
-      const product = await this.checkExistingProduct(id, storeId, categoryId, colorId);
+      await this.validateStoreCategoryColor({
+        userId: user.id,
+        storeId,
+        categoryId,
+        colorId,
+      });
+      const product = await this.checkExistingProduct(
+        id,
+        storeId,
+        categoryId,
+        colorId,
+      );
 
-      this.logger.info(`PRODUCT SERVICE | FETCH SUCCESS: Retrieved product ${product.id}`);
+      this.logger.info(
+        `PRODUCT SERVICE | FETCH SUCCESS: Retrieved product ${product.id}`,
+      );
       return this.toProductResponse(product);
     } catch (error) {
       this.handleError(error);
     }
   }
 
-  async update(user: User, request: UpdateProductRequest): Promise<ProductResponse> {
+  async update(
+    user: User,
+    request: UpdateProductRequest,
+  ): Promise<ProductResponse> {
     try {
       const { store, category, color } = await this.validateStoreCategoryColor({
         userId: user.id,
@@ -178,15 +243,29 @@ export class ProductService {
         colorId: request.colorId,
       });
 
-      await this.checkExistingProduct(request.id, store.id, category.id, color.id);
-      const validatedRequest = await this.validationService.validate(ProductValidation.UPDATE, request);
+      await this.checkExistingProduct(
+        request.id,
+        store.id,
+        category.id,
+        color.id,
+      );
+      const validatedRequest = await this.validationService.validate(
+        ProductValidation.UPDATE,
+        request,
+      );
 
       const updatedProduct = await this.prismaService.product.update({
         where: { id: request.id },
-        data: { name: validatedRequest.name, price: validatedRequest.price, isFeatured: validatedRequest.isFeatured },
+        data: {
+          name: validatedRequest.name,
+          price: validatedRequest.price,
+          isFeatured: validatedRequest.isFeatured,
+        },
       });
 
-      this.logger.info(`PRODUCT SERVICE | UPDATE SUCCESS: Product ${updatedProduct.id} updated by user ${user.id}`);
+      this.logger.info(
+        `PRODUCT SERVICE | UPDATE SUCCESS: Product ${updatedProduct.id} updated by user ${user.id}`,
+      );
 
       return this.toProductResponse(updatedProduct);
     } catch (error) {
@@ -194,20 +273,34 @@ export class ProductService {
     }
   }
 
-  async delete(user: User, storeId: number, categoryId: number, colorId: number, id: number): Promise<{ message: string; success: boolean }> {
-    this.logger.warn(`PRODUCT SERVICE | DELETE: { user_id: ${user.id}, product_id: ${id} }`);
+  async delete(
+    user: User,
+    storeId: number,
+    categoryId: number,
+    colorId: number,
+    id: number,
+  ): Promise<{ message: string; success: boolean }> {
+    this.logger.warn(
+      `PRODUCT SERVICE | DELETE: { user_id: ${user.id}, product_id: ${id} }`,
+    );
     try {
-      await this.validateStoreCategoryColor({ userId: user.id, storeId, categoryId, colorId });
+      await this.validateStoreCategoryColor({
+        userId: user.id,
+        storeId,
+        categoryId,
+        colorId,
+      });
       await this.checkExistingProduct(id, storeId, categoryId, colorId);
-  
+
       await this.prismaService.product.delete({ where: { id } });
-  
-      this.logger.info(`PRODUCT SERVICE | DELETE SUCCESS: Product with id ${ id } deleted`);
-      
+
+      this.logger.info(
+        `PRODUCT SERVICE | DELETE SUCCESS: Product with id ${id} deleted`,
+      );
+
       return { message: 'Product successfully deleted', success: true };
     } catch (error) {
       this.handleError(error);
     }
   }
-  
 }

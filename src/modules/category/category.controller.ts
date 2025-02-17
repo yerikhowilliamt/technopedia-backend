@@ -53,7 +53,7 @@ export class CategoryController {
     ) {
       throw error;
     }
-
+    this.logger.error('Unhandled error occurred', { error: error.message, stack: error.stack });
     throw error;
   }
 
@@ -64,6 +64,13 @@ export class CategoryController {
     @Param('storeId', ParseIntPipe) storeId: number,
     @Body() request: CreateCategoryRequest,
   ): Promise<WebResponse<CategoryResponse>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      action: 'CREATE',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       request.storeId = storeId;
 
@@ -76,6 +83,11 @@ export class CategoryController {
       );
 
       const result = await this.categoryService.create(user, request);
+
+      this.logger.info('Category created successfully', {
+        ...logData,
+        categoryId: result.id,
+      });
 
       return this.toCategoryResponse(result, 201);
     } catch (error) {
@@ -91,6 +103,13 @@ export class CategoryController {
     @Query('page', ParseIntPipe) page: number = 1,
     @Query('limit', ParseIntPipe) limit: number = 10,
   ): Promise<WebResponse<CategoryResponse[]>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      action: 'LIST',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       if (!storeId) {
         throw new BadRequestException('Store ID are required.');
@@ -102,6 +121,11 @@ export class CategoryController {
         page,
         limit,
       );
+
+      this.logger.info('Category retrieved successfully', {
+        ...logData,
+        totalItems: result.paging?.size,
+      });
 
       return this.toCategoryResponse(result.data, 200, result.paging);
     } catch (error) {
@@ -116,6 +140,14 @@ export class CategoryController {
     @Param('storeId', ParseIntPipe) storeId: number,
     @Param('categoryId', ParseIntPipe) categoryId: number,
   ): Promise<WebResponse<CategoryResponse>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      categoryId: categoryId,
+      action: 'GET',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       if (!storeId || !categoryId) {
         throw new BadRequestException('Category ID and Store ID are required.');
@@ -126,6 +158,8 @@ export class CategoryController {
         storeId,
         categoryId
       );
+
+      this.logger.info('Category details retrieved', logData);
 
       return this.toCategoryResponse(result, 200);
     } catch (error) {
@@ -141,6 +175,14 @@ export class CategoryController {
     @Param('categoryId', ParseIntPipe) categoryId: number,
     @Body() request: UpdateCategoryRequest,
   ): Promise<WebResponse<CategoryResponse>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      categoryId: categoryId,
+      action: 'UPDATE',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       request.id = categoryId;
       request.storeId = storeId;
@@ -150,6 +192,11 @@ export class CategoryController {
       }
 
       const result = await this.categoryService.update(user, request);
+
+      this.logger.info('Category updated successfully', {
+        ...logData,
+        updatedCategoryId: result.id,
+      });
 
       return this.toCategoryResponse(result, 200);
     } catch (error) {
@@ -164,6 +211,14 @@ export class CategoryController {
     @Param('storeId', ParseIntPipe) storeId: number,
     @Param('categoryId', ParseIntPipe) categoryId: number,
   ): Promise<WebResponse<{ message: string; success: boolean }>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      categoryId: categoryId,
+      action: 'DELETE',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       if (!categoryId || !storeId) {
         throw new BadRequestException('Category ID and Store ID are required.');
@@ -174,6 +229,12 @@ export class CategoryController {
         storeId,
         categoryId,
       );
+
+      this.logger.info({
+        ...logData,
+        success: result.success,
+        message: result.message
+      });
 
       return this.toCategoryResponse(
         {

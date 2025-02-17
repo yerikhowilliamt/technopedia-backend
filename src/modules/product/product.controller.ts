@@ -12,6 +12,7 @@ import {
   Query,
   UnauthorizedException,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
@@ -25,8 +26,9 @@ import {
   ProductResponse,
   UpdateProductRequest,
 } from 'src/model/product.model';
+import { FileInterceptor } from '@nestjs/platform-express';
 
-@Controller('stores/:storeId/:categoryId/:colorId/products')
+@Controller('stores/:storeId/categories/:categoryId/colors/:colorId/products')
 export class ProductController {
   constructor(
     @Inject(WINSTON_MODULE_PROVIDER) private logger: Logger,
@@ -59,13 +61,27 @@ export class ProductController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('files'))
   async create(
     @Auth() user: User,
     @Param('storeId', ParseIntPipe) storeId: number,
+    @Param('categoryId', ParseIntPipe) categoryId: number,
+    @Param('colorId', ParseIntPipe) colorId: number,
     @Body() request: CreateProductRequest,
   ): Promise<WebResponse<ProductResponse>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      categoryId: categoryId,
+      colorId: colorId,
+      action: 'CREATE',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       request.storeId = storeId;
+      request.categoryId = categoryId;
+      request.colorId = colorId;
 
       if (!request.storeId) {
         throw new BadRequestException('Store ID are required.');
@@ -76,6 +92,11 @@ export class ProductController {
       );
 
       const result = await this.productService.create(user, request);
+
+      this.logger.info('Product created successfully', {
+        ...logData,
+        productId: result.id,
+      });
 
       return this.toProductResponse(result, 201);
     } catch (error) {
@@ -91,12 +112,24 @@ export class ProductController {
     @Query('page', ParseIntPipe) page: number = 1,
     @Query('limit', ParseIntPipe) limit: number = 10,
   ): Promise<WebResponse<ProductResponse[]>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      action: 'LIST',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       if (!storeId) {
         throw new BadRequestException('Store ID are required.');
       }
 
       const result = await this.productService.list(user, storeId, page, limit);
+
+      this.logger.info('Product retrieved successfully', {
+        ...logData,
+        totalItems: result.paging?.size,
+      });
 
       return this.toProductResponse(result.data, 200, result.paging);
     } catch (error) {
@@ -113,6 +146,16 @@ export class ProductController {
     @Param('categoryId', ParseIntPipe) categoryId: number,
     @Param('colorId', ParseIntPipe) colorId: number,
   ): Promise<WebResponse<ProductResponse>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      categoryId: categoryId,
+      colorId: colorId,
+      productId: productId,
+      action: 'GET',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       if (!storeId && !colorId) {
         throw new BadRequestException('Color ID and Store ID are required.');
@@ -125,6 +168,8 @@ export class ProductController {
         colorId,
         productId,
       );
+
+      this.logger.info('Product details retrieved', logData);
 
       return this.toProductResponse(result, 200);
     } catch (error) {
@@ -142,6 +187,16 @@ export class ProductController {
     @Param('colorId', ParseIntPipe) colorId: number,
     @Body() request: UpdateProductRequest,
   ): Promise<WebResponse<ProductResponse>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      categoryId: categoryId,
+      colorId: colorId,
+      productId: productId,
+      action: 'UPDATE',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       request.id = productId;
       request.storeId = storeId;
@@ -161,6 +216,11 @@ export class ProductController {
 
       const result = await this.productService.update(user, request);
 
+      this.logger.info('Product updated successfully', {
+        ...logData,
+        updatedProductId: result.id,
+      });
+
       return this.toProductResponse(result, 200);
     } catch (error) {
       this.handleError(error);
@@ -176,6 +236,16 @@ export class ProductController {
     @Param('categoryId', ParseIntPipe) categoryId: number,
     @Param('colorId', ParseIntPipe) colorId: number,
   ): Promise<WebResponse<{ message: string; success: boolean }>> {
+    const logData = {
+      userId: user.id,
+      storeId: storeId,
+      categoryId: categoryId,
+      colorId: colorId,
+      productId: productId,
+      action: 'DELETE',
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       if (!productId && !storeId && !categoryId && !colorId) {
         throw new BadRequestException(
@@ -190,6 +260,12 @@ export class ProductController {
         colorId,
         productId,
       );
+
+      this.logger.info({
+        ...logData,
+        success: result.success,
+        message: result.message,
+      });
 
       return this.toProductResponse(
         {

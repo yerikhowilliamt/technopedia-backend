@@ -11,6 +11,9 @@ export class ProductValidation {
     price: z.string().min(1, {
       message: 'Price cannot be empty.'
     }),
+    description: z.string().min(1, {
+      message: 'Description cannot be empty.'
+    }),
     isFeatured: z.boolean(),
     isArchived: z.boolean()
   })
@@ -24,6 +27,9 @@ export class ProductValidation {
     }),
     price: z.string().min(1, {
       message: 'Price cannot be empty.'
+    }),
+    description: z.string().min(1, {
+      message: 'Description cannot be empty.'
     }),
     isFeatured: z.boolean(),
     isArchived: z.boolean()
